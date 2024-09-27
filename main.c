@@ -22,7 +22,6 @@ typedef enum {
     TOKEN_STRING,      // 字符串常量
     TOKEN_CHAR,        // 字符常量
     TOKEN_PREPROCESSOR, // 预处理指令
-    TOKEN_COMMENT,     // 注释
     TOKEN_LPAREN,      // '('
     TOKEN_RPAREN,      // ')'
     TOKEN_LBRACE,      // '{'
@@ -90,7 +89,6 @@ Token* lex_number();
 Token* lex_operator();
 Token* lex_string();
 Token* lex_char();
-Token* lex_comment();
 Token* lex_preprocessor();
 Token* lex_symbol();
 
@@ -282,9 +280,8 @@ Token* tokenize(const char *source_code) {
             Token* token = lex_number();
             append_token(token);
         } else if (current_char() == '/' && (peek() == '/' || peek() == '*')) {
-            // 解析注释
-            Token* token = lex_comment();
-            append_token(token);
+            // 不再解析注释，直接跳过
+            skip_comment();
         } else if (current_char() == '#') {
             // 解析预处理指令
             Token* token = lex_preprocessor();
@@ -460,41 +457,6 @@ Token* lex_char() {
     buffer[length] = '\0';
 
     return create_token(TOKEN_CHAR, buffer, current_line, current_column - length);
-}
-
-/**
- * 解析注释
- * @return 返回解析到的 Token
- */
-Token* lex_comment() {
-    char buffer[256];
-    int length = 0;
-    long start_column = current_column;  // 记录注释的起始列号
-
-    if (current_char() == '/' && peek() == '/') {  // 行注释
-        while (current_char() != '\n' && current_char() != '\0') {
-            buffer[length++] = current_char();
-            next_char();
-        }
-    } else if (current_char() == '/' && peek() == '*') {  // 块注释
-        while (current_char() != '\0') {
-            buffer[length++] = current_char();
-            if (current_char() == '*' && peek() == '/') {
-                next_char();
-                buffer[length++] = current_char();
-                next_char();
-                break;
-            } else if (current_char() == '\n') {
-                current_line++;     // 换行时增加行号
-                current_column = 0; // 换行后的列号重新从0开始递增
-            }
-            next_char();
-        }
-    }
-
-    buffer[length] = '\0';
-    // 注意：此处仍返回起始列号，不减去 length，因为起始列只在第一个字符时确定
-    return create_token(TOKEN_COMMENT, buffer, current_line, start_column);
 }
 
 /**

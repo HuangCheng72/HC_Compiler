@@ -118,7 +118,8 @@ int main() {
  * @param source_code 指向源代码字符串的指针
  */
 void init_lexer(const char *source_code) {
-
+    source_code_ptr = source_code;  // 设置源代码的指针
+    current_index = 0;              // 初始化为第一个字符
 }
 
 /**
@@ -126,14 +127,22 @@ void init_lexer(const char *source_code) {
  * @return 当前字符
  */
 char current_char() {
-    return '\0';
+    return source_code_ptr[current_index];  // 返回当前字符
 }
 
 /**
  * 移动到下一个字符
  */
 void next_char() {
-
+    if (current_char() == '\n') {
+        // 遇到换行符，行号递增，列号重置为1
+        current_line++;
+        current_column = 1;
+    } else {
+        // 非换行字符，列号递增
+        current_column++;
+    }
+    current_index++;  // 无论如何，递增索引，指向下一个字符
 }
 
 /**
@@ -141,7 +150,7 @@ void next_char() {
  * @return 下一个字符
  */
 char peek() {
-    return '\0';
+    return source_code_ptr[current_index + 1];  // 返回下一个字符
 }
 
 // token处理
@@ -155,7 +164,34 @@ char peek() {
  * @return 返回指向新创建 Token 的指针
  */
 Token* create_token(TokenType type, const char *value, long line, long column) {
-    return NULL;
+    // 为新 Token 分配内存
+    Token *new_token = (Token*)malloc(sizeof(Token));
+
+    // 检查内存分配是否成功
+    if (new_token == NULL) {
+        fprintf(stderr, "Error: Failed to allocate memory for new token\n");
+        return new_token;
+    }
+
+    // 先用memset初始化全部为0，这样就不用担心了
+    memset(new_token, 0, sizeof(*new_token));
+
+    // 设置 Token 类型
+    new_token->type = type;
+
+    // 拷贝 Token 值
+    strncpy(new_token->value, value, sizeof(new_token->value) - 1);
+    // 之前已经memset为0，能够确保字符串结尾为\0，无需再次确保
+
+    // 设置 Token 行和列信息
+    new_token->line = line;
+    new_token->column = column;
+
+    // 初始化 Token 中的链表节点
+    init_list_node(&new_token->node);
+
+    // 返回新创建的 Token
+    return new_token;
 }
 
 /**
@@ -163,14 +199,19 @@ Token* create_token(TokenType type, const char *value, long line, long column) {
  * @param new_token 指向要添加的 Token 的指针
  */
 void append_token(Token *new_token) {
-
+    list_add_tail(&new_token->node, &token_list_head);  // 将新 Token 插入链表末尾
 }
 
 /**
  * 打印链表中的所有 Token
  */
 void print_tokens() {
-
+    LIST_NODE *pos;
+    list_for_each(pos, &token_list_head) {
+        Token *token = list_entry(pos, Token, node);  // 获取 Token 的首地址
+        printf("Token: Type=%d, Value=%s, Line=%ld, Column=%ld\n",
+               token->type, token->value, token->line, token->column);  // 打印 Token 信息
+    }
 }
 
 /**
@@ -252,7 +293,12 @@ Token* lex_symbol() {
  * @return 是关键字返回1，否则返回0
  */
 int is_keyword(const char *str) {
-    return 0;
+    for (int i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i++) {
+        if (strcmp(str, keywords[i]) == 0) {
+            return 1;  // 如果匹配，返回1
+        }
+    }
+    return 0;  // 否则返回0
 }
 
 /**
@@ -261,7 +307,7 @@ int is_keyword(const char *str) {
  * @return 是字母返回1，否则返回0
  */
 int is_letter(char c) {
-    return 0;
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';  // C语言标识符允许下划线
 }
 
 /**
@@ -270,19 +316,42 @@ int is_letter(char c) {
  * @return 是数字返回1，否则返回0
  */
 int is_digit(char c) {
-    return 0;
+    return c >= '0' && c <= '9';  // 判断是否是数字
 }
 
 /**
  * 跳过空白字符（空格、制表符、换行符等）
  */
 void skip_whitespace() {
-
+    while (current_char() == ' ' || current_char() == '\t' || current_char() == '\n' || current_char() == '\r') {
+        next_char();  // 跳过当前空白字符
+    }
 }
 
 /**
  * 跳过注释
  */
 void skip_comment() {
+    if (current_char() == '/' && peek() == '/') {  // 行注释
+        next_char();  // 跳过 '/'
+        next_char();  // 跳过第二个 '/'
 
+        while (current_char() != '\n' && current_char() != '\0') {  // 一直到行尾或者文件结束
+            next_char();
+        }
+        next_char();  // 跳过换行符
+    }
+    else if (current_char() == '/' && peek() == '*') {  // 块注释
+        next_char();  // 跳过 '/'
+        next_char();  // 跳过 '*'
+
+        while (current_char() != '\0') {
+            if (current_char() == '*' && peek() == '/') {  // 检查块注释结束符号 '*/'
+                next_char();  // 跳过 '*'
+                next_char();  // 跳过 '/'
+                break;
+            }
+            next_char();  // 否则继续跳过注释内的字符
+        }
+    }
 }

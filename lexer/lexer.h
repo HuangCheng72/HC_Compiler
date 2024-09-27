@@ -9,7 +9,7 @@
 // 目前用链表表示流（流是一个概念型的数据结构，用什么实现都行）
 
 #include <stdio.h>
-#include "../list.h"
+#include "../common/list/list.h"
 #include <string.h>
 
 // 定义 Token 类型

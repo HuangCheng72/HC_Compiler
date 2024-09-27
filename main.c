@@ -110,6 +110,39 @@ int main() {
     current_line = 0;
     current_column = 0;
 
+    // 用于测试的源代码，无实际意义
+    const char *source_code =
+            "#include <stdio.h> // Test preprocessor\n"
+            "/* This is a block comment */\n"
+            "int main() {\n"
+            "    auto a = 10;              // Keyword and integer constant\n"
+            "    float b = 10.5;           // Float constant\n"
+            "    char c = 'x';             // Char constant\n"
+            "    const char *str = \"Hello, world!\"; // String constant\n"
+            "    if (a > 0) { a += 1; }    // Operator and symbols\n"
+            "    for (int i = 0; i < 10; i++) {  // For loop\n"
+            "        printf(\"i = %d\\n\", i);   // Function call\n"
+            "    }\n"
+            "    switch (a) {              // Switch-case statement\n"
+            "        case 1: printf(\"One\"); break;\n"
+            "        case 2: printf(\"Two\"); break;\n"
+            "        default: printf(\"Other\"); break;\n"
+            "    }\n"
+            "    while (b <= 20.5) {       // While loop\n"
+            "        b--;                  // Decrement operator\n"
+            "    }\n"
+            "    do {                      // Do-while loop\n"
+            "        b += 2.5;\n"
+            "    } while (b < 50);\n"
+            "    return 0;                 // Return statement\n"
+            "}\n";
+
+    // 调用词法分析器解析源代码
+    tokenize(source_code);
+
+    // 打印所有解析到的 Token
+    print_tokens();
+
     return 0;
 }
 

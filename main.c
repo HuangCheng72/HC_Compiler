@@ -220,7 +220,65 @@ void print_tokens() {
  * @return 返回指向 Token 链表头的指针
  */
 Token* tokenize(const char *source_code) {
-    return NULL;
+    // 初始化词法分析器
+    init_lexer(source_code);
+    // 更新行号为第一行
+    current_line = 1;
+    // 更新列号为第一列
+    current_column = 1;
+
+    // 循环遍历源代码的每一个字符，直到文件结束
+    while (current_char() != '\0') {
+        skip_whitespace();  // 跳过空白字符
+
+        // 当前字符的类型判断
+        if (is_letter(current_char())) {
+            // 解析标识符或关键字
+            Token* token = lex_identifier_or_keyword();
+            append_token(token);
+        } else if (is_digit(current_char())) {
+            // 解析数字
+            Token* token = lex_number();
+            append_token(token);
+        } else if (current_char() == '/' && (peek() == '/' || peek() == '*')) {
+            // 解析注释
+            Token* token = lex_comment();
+            append_token(token);
+        } else if (current_char() == '#') {
+            // 解析预处理指令
+            Token* token = lex_preprocessor();
+            append_token(token);
+        } else if (current_char() == '"' || current_char() == '\'') {
+            // 解析字符串或字符常量
+            if (current_char() == '"') {
+                Token* token = lex_string();
+                append_token(token);
+            } else {
+                Token* token = lex_char();
+                append_token(token);
+            }
+        } else if (strchr("+-*/=!><&|?:", current_char())) {
+            // 解析运算符
+            Token* token = lex_operator();
+            append_token(token);
+        } else if (strchr("(){}[];,.", current_char())) {
+            // 解析符号
+            Token* token = lex_symbol();
+            append_token(token);
+        } else {
+            // 未知字符，忽略或报错处理
+            fprintf(stderr, "Warning: Unrecognized character '%c' at line %ld, column %ld\n",
+                    current_char(), current_line, current_column);
+            next_char();  // 跳过这个字符，继续处理
+        }
+    }
+
+    // 解析结束后，添加文件结束标记
+    Token* eof_token = create_token(TOKEN_EOF, "EOF", current_line, current_column);
+    append_token(eof_token);
+
+    // 返回链表头结点
+    return list_entry(token_list_head.next, Token, node);
 }
 
 /**
@@ -228,7 +286,21 @@ Token* tokenize(const char *source_code) {
  * @return 返回解析到的 Token
  */
 Token* lex_identifier_or_keyword() {
-    return NULL;
+    char buffer[256];
+    int length = 0;
+
+    // 读取标识符的字符，直到遇到非字母、数字或下划线的字符
+    while (is_letter(current_char()) || is_digit(current_char())) {
+        buffer[length++] = current_char();
+        next_char();
+    }
+    buffer[length] = '\0';  // 终止符
+
+    // 判断是否是关键字
+    TokenType type = is_keyword(buffer) ? TOKEN_KEYWORD : TOKEN_IDENTIFIER;
+
+    // 创建Token
+    return create_token(type, buffer, current_line, current_column - length);
 }
 
 /**
@@ -236,7 +308,38 @@ Token* lex_identifier_or_keyword() {
  * @return 返回解析到的 Token
  */
 Token* lex_number() {
-    return NULL;
+    char buffer[256];
+    int length = 0;
+    int is_float = 0;
+
+    // 处理数字（整数或浮点数）
+    while (is_digit(current_char()) || current_char() == '.') {
+        if (current_char() == '.') {
+            is_float = 1;
+        }
+        buffer[length++] = current_char();
+        next_char();
+    }
+
+    // 检查科学记数法
+    if (current_char() == 'e' || current_char() == 'E') {
+        buffer[length++] = current_char();
+        next_char();
+        if (current_char() == '+' || current_char() == '-') {
+            buffer[length++] = current_char();
+            next_char();
+        }
+        while (is_digit(current_char())) {
+            buffer[length++] = current_char();
+            next_char();
+        }
+        is_float = 1;
+    }
+
+    buffer[length] = '\0';  // 终止符
+
+    TokenType type = is_float ? TOKEN_FLOAT : TOKEN_INT;
+    return create_token(type, buffer, current_line, current_column - length);
 }
 
 /**
@@ -244,7 +347,30 @@ Token* lex_number() {
  * @return 返回解析到的 Token
  */
 Token* lex_operator() {
-    return NULL;
+    char buffer[3];  // 运算符长度通常不会超过2个字符
+    int length = 0;
+
+    buffer[length++] = current_char();
+    next_char();
+
+    // 检查双字符运算符
+    if ((buffer[0] == '+' && current_char() == '+') ||
+        (buffer[0] == '-' && current_char() == '-') ||
+        (buffer[0] == '=' && current_char() == '=') ||
+        (buffer[0] == '!' && current_char() == '=') ||
+        (buffer[0] == '&' && current_char() == '&') ||
+        (buffer[0] == '|' && current_char() == '|')) {
+        buffer[length++] = current_char();
+        next_char();
+    }
+    buffer[length] = '\0';
+
+    // 支持问号 ? 和冒号 : 作为运算符
+    if (buffer[0] == '?' || buffer[0] == ':') {
+        return create_token(TOKEN_OPERATOR, buffer, current_line, current_column - length);
+    }
+
+    return create_token(TOKEN_OPERATOR, buffer, current_line, current_column - length);
 }
 
 /**
@@ -252,7 +378,24 @@ Token* lex_operator() {
  * @return 返回解析到的 Token
  */
 Token* lex_string() {
-    return NULL;
+    char buffer[256];
+    int length = 0;
+
+    next_char();  // 跳过开头的双引号
+
+    while (current_char() != '"' && current_char() != '\0') {
+        if (current_char() == '\\') {  // 处理转义字符
+            buffer[length++] = current_char();
+            next_char();
+        }
+        buffer[length++] = current_char();
+        next_char();
+    }
+
+    next_char();  // 跳过结尾的双引号
+    buffer[length] = '\0';
+
+    return create_token(TOKEN_STRING, buffer, current_line, current_column - length);
 }
 
 /**
@@ -260,7 +403,22 @@ Token* lex_string() {
  * @return 返回解析到的 Token
  */
 Token* lex_char() {
-    return NULL;
+    char buffer[3];
+    int length = 0;
+
+    next_char();  // 跳过开头的单引号
+
+    if (current_char() == '\\') {  // 处理转义字符
+        buffer[length++] = current_char();
+        next_char();
+    }
+    buffer[length++] = current_char();
+    next_char();
+
+    next_char();  // 跳过结尾的单引号
+    buffer[length] = '\0';
+
+    return create_token(TOKEN_CHAR, buffer, current_line, current_column - length);
 }
 
 /**
@@ -268,7 +426,34 @@ Token* lex_char() {
  * @return 返回解析到的 Token
  */
 Token* lex_comment() {
-    return NULL;
+    char buffer[256];
+    int length = 0;
+    long start_column = current_column;  // 记录注释的起始列号
+
+    if (current_char() == '/' && peek() == '/') {  // 行注释
+        while (current_char() != '\n' && current_char() != '\0') {
+            buffer[length++] = current_char();
+            next_char();
+        }
+    } else if (current_char() == '/' && peek() == '*') {  // 块注释
+        while (current_char() != '\0') {
+            buffer[length++] = current_char();
+            if (current_char() == '*' && peek() == '/') {
+                next_char();
+                buffer[length++] = current_char();
+                next_char();
+                break;
+            } else if (current_char() == '\n') {
+                current_line++;     // 换行时增加行号
+                current_column = 0; // 换行后的列号重新从0开始递增
+            }
+            next_char();
+        }
+    }
+
+    buffer[length] = '\0';
+    // 注意：此处仍返回起始列号，不减去 length，因为起始列只在第一个字符时确定
+    return create_token(TOKEN_COMMENT, buffer, current_line, start_column);
 }
 
 /**
@@ -276,7 +461,16 @@ Token* lex_comment() {
  * @return 返回解析到的 Token
  */
 Token* lex_preprocessor() {
-    return NULL;
+    char buffer[256];
+    int length = 0;
+
+    while (current_char() != '\n' && current_char() != '\0') {
+        buffer[length++] = current_char();
+        next_char();
+    }
+
+    buffer[length] = '\0';
+    return create_token(TOKEN_PREPROCESSOR, buffer, current_line, current_column - length);
 }
 
 /**
@@ -284,7 +478,26 @@ Token* lex_preprocessor() {
  * @return 返回解析到的 Token
  */
 Token* lex_symbol() {
-    return NULL;
+    char buffer[2];
+    buffer[0] = current_char();  // 读取当前字符
+    buffer[1] = '\0';
+
+    TokenType type;
+    switch (buffer[0]) {
+        case '(': type = TOKEN_LPAREN; break;
+        case ')': type = TOKEN_RPAREN; break;
+        case '{': type = TOKEN_LBRACE; break;
+        case '}': type = TOKEN_RBRACE; break;
+        case '[': type = TOKEN_LBRACKET; break;
+        case ']': type = TOKEN_RBRACKET; break;
+        case ';': type = TOKEN_SEMICOLON; break;  // 分号解析
+        case ',': type = TOKEN_COMMA; break;
+        case '.': type = TOKEN_PERIOD; break;
+        default: return NULL;
+    }
+
+    next_char();  // 移动到下一个字符
+    return create_token(type, buffer, current_line, current_column - 1);
 }
 
 /**

@@ -102,7 +102,39 @@ int is_digit(char c);
 void skip_whitespace();
 void skip_comment();
 
-int main() {
+int main(int argc, char *argv[]) {
+    // 检查是否提供了文件路径
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <source_file_path>\n", argv[0]);
+        return 1;
+    }
+
+    // 打开指定的C语言源代码文件
+    const char *file_path = argv[1];
+    FILE *file = fopen(file_path, "r");
+    if (!file) {
+        fprintf(stderr, "Error: Could not open file %s\n", file_path);
+        return 1;
+    }
+
+    // 获取文件大小并分配内存
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char *source_code = (char *)malloc(file_size + 1);
+    if (!source_code) {
+        fprintf(stderr, "Error: Memory allocation failed\n");
+        fclose(file);
+        return 1;
+    }
+
+    // 读取文件内容
+    fread(source_code, 1, file_size, file);
+    source_code[file_size] = '\0';  // 确保以null终止
+
+    fclose(file);  // 关闭文件
+
     // 初始化全局变量
     init_list_node(&token_list_head);
     source_code_ptr = NULL;
@@ -110,38 +142,14 @@ int main() {
     current_line = 0;
     current_column = 0;
 
-    // 用于测试的源代码，无实际意义
-    const char *source_code =
-            "#include <stdio.h> // Test preprocessor\n"
-            "/* This is a block comment */\n"
-            "int main() {\n"
-            "    auto a = 10;              // Keyword and integer constant\n"
-            "    float b = 10.5;           // Float constant\n"
-            "    char c = 'x';             // Char constant\n"
-            "    const char *str = \"Hello, world!\"; // String constant\n"
-            "    if (a > 0) { a += 1; }    // Operator and symbols\n"
-            "    for (int i = 0; i < 10; i++) {  // For loop\n"
-            "        printf(\"i = %d\\n\", i);   // Function call\n"
-            "    }\n"
-            "    switch (a) {              // Switch-case statement\n"
-            "        case 1: printf(\"One\"); break;\n"
-            "        case 2: printf(\"Two\"); break;\n"
-            "        default: printf(\"Other\"); break;\n"
-            "    }\n"
-            "    while (b <= 20.5) {       // While loop\n"
-            "        b--;                  // Decrement operator\n"
-            "    }\n"
-            "    do {                      // Do-while loop\n"
-            "        b += 2.5;\n"
-            "    } while (b < 50);\n"
-            "    return 0;                 // Return statement\n"
-            "}\n";
-
     // 调用词法分析器解析源代码
     tokenize(source_code);
 
     // 打印所有解析到的 Token
     print_tokens();
+
+    // 释放文件内容所占内存
+    free(source_code);
 
     return 0;
 }

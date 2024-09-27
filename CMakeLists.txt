@@ -3,4 +3,4 @@ project(HC_Compiler C)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(HC_Compiler main.c list.c)
+add_executable(HC_Compiler main.c list.c lexer/lexer.c)
